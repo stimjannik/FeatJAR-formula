@@ -18,7 +18,7 @@
  *
  * See <https://github.com/FeatureIDE/FeatJAR-formula> for further information.
  */
-package de.featjar.formula.computation;
+package de.featjar.formula.computation.interactionfinder;
 
 import de.featjar.analysis.IConfigurationUpdater;
 import de.featjar.analysis.IConfigurationVerifyer;
@@ -42,44 +42,7 @@ import java.util.stream.Stream;
  * @author Sebastian Krieter
  */
 // TODO convert to computation
-public class IncInteractionFinder {
-
-    protected IConfigurationUpdater updater;
-    private IConfigurationVerifyer verifier;
-    private ABooleanAssignment core;
-
-    protected int configurationVerificationLimit = Integer.MAX_VALUE;
-
-    protected List<BooleanSolution> succeedingConfs;
-    protected List<BooleanSolution> failingConfs;
-
-    protected int verifyCounter;
-    protected int[] lastMerge;
-
-    public void reset() {
-        succeedingConfs = new ArrayList<>();
-        failingConfs = new ArrayList<>();
-    }
-
-    public void setUpdater(IConfigurationUpdater updater) {
-        this.updater = updater;
-    }
-
-    public void setVerifier(IConfigurationVerifyer verifier) {
-        this.verifier = verifier;
-    }
-
-    public void setCore(ABooleanAssignment core) {
-        this.core = core;
-    }
-
-    public void setConfigurationVerificationLimit(int configurationVerificationLimit) {
-        this.configurationVerificationLimit = configurationVerificationLimit;
-    }
-
-    public void addConfigurations(List<? extends ABooleanAssignment> configurations) {
-        configurations.stream().map(ABooleanAssignment::toSolution).forEach(this::verify);
-    }
+public class IncInteractionFinder extends AInteractionFinder {
 
     public List<BooleanAssignment> find(int tmax) {
         if (failingConfs.isEmpty()) {
@@ -148,56 +111,7 @@ public class IncInteractionFinder {
                 : null;
     }
 
-    public List<BooleanSolution> getSample() {
-        ArrayList<BooleanSolution> sample = new ArrayList<>(succeedingConfs.size() + failingConfs.size());
-        sample.addAll(succeedingConfs);
-        sample.addAll(failingConfs);
-        return sample;
-    }
-
-    public int getVerifyCounter() {
-        return verifyCounter;
-    }
-
-    protected List<int[]> computePotentialInteractions(int t) {
-        final Iterator<BooleanSolution> iterator = failingConfs.iterator();
-        ABooleanAssignment failingLiterals = iterator.next();
-        while (iterator.hasNext()) {
-            failingLiterals = new BooleanAssignment(iterator.next().retainAll(failingLiterals.get()));
-        }
-        if (core != null) {
-            failingLiterals = new BooleanAssignment(failingLiterals.removeAll(core.get()));
-        }
-
-        final int[] commonLiterals = failingLiterals.toAssignment().get();
-        if (commonLiterals.length < t) {
-            return List.of(commonLiterals);
-        }
-
-        Stream<int[]> stream = LexicographicIterator.parallelStream(t, commonLiterals.length) //
-                .map(combo -> combo.getSelection(commonLiterals));
-        List<int[]> interactions;
-        if (lastMerge != null) {
-            BooleanAssignment lastLiterals = new BooleanAssignment(lastMerge);
-            if (lastLiterals.containsAll(failingLiterals)) {
-                return null;
-            }
-            interactions = stream //
-                    .filter(literals -> !lastLiterals.containsAll(literals)) //
-                    .filter(literals -> !isCovered(literals)) //
-                    .map(literals -> Arrays.copyOf(literals, literals.length)) //
-                    .collect(Collectors.toList());
-            interactions.add(lastMerge);
-        } else {
-            interactions = stream //
-                    .filter(literals -> !isCovered(literals)) //
-                    .map(literals -> Arrays.copyOf(literals, literals.length)) //
-                    .collect(Collectors.toList());
-        }
-        return interactions;
-    }
-
-    private List<int[]> findT(int t) {
+    protected List<int[]> findT(int t) {
         if (lastMerge != null && lastMerge.length <= t) {
             lastMerge = null;
         }
@@ -273,46 +187,5 @@ public class IncInteractionFinder {
             lastMerge = IntegerList.mergeInt(curInteractionList);
             return curInteractionList;
         }
-    }
-
-    private boolean isCovered(int[] combo) {
-        for (BooleanSolution configuration : succeedingConfs) {
-            if (configuration.containsAll(combo)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    protected Map<Boolean, List<int[]>> group(List<int[]> list, final BooleanSolution newConfig) {
-        return list.parallelStream()
-                .collect(Collectors.groupingByConcurrent(
-                        i -> newConfig.containsAll(i), Collectors.toCollection(ArrayList::new)));
-    }
-
-    protected boolean verify(BooleanSolution solution) {
-        verifyCounter++;
-        if (verifier.test(solution) == 0) {
-            succeedingConfs.add(solution);
-            return true;
-        } else {
-            failingConfs.add(solution);
-            return false;
-        }
-    }
-
-    protected boolean isPotentialInteraction(List<int[]> interactions) {
-        if (interactions == null) {
-            return false;
-        }
-        final BooleanSolution testConfig =
-                updater.complete(interactions, null, null).orElse(null);
-        if (testConfig == null || verify(testConfig)) {
-            return false;
-        }
-        int[] exclude = IntegerList.mergeInt(interactions);
-        final BooleanSolution inverseConfig =
-                updater.complete(null, List.of(exclude), null).orElse(null);
-        return inverseConfig == null || verify(inverseConfig);
     }
 }
