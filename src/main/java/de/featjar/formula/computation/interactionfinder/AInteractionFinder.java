@@ -38,7 +38,7 @@ import java.util.stream.Stream;
 public abstract class AInteractionFinder {
     protected IConfigurationUpdater updater;
     protected IConfigurationVerifyer verifier;
-    private ABooleanAssignment core;
+    protected ABooleanAssignment core;
 
     protected int configurationVerificationLimit = Integer.MAX_VALUE;
 
@@ -126,7 +126,7 @@ public abstract class AInteractionFinder {
 
     protected abstract List<int[]> findT(int t);
 
-    private boolean isCovered(int[] combo) {
+    protected boolean isCovered(int[] combo) {
         for (BooleanSolution configuration : succeedingConfs) {
             if (configuration.containsAll(combo)) {
                 return true;
