@@ -13,9 +13,10 @@ public class IncInteractionFinderRepeat extends AInteractionFinder {
     private ArrayList<Integer> errors = new ArrayList<>();
     private List<BooleanSolution> differentErrorConfs = new ArrayList<>();
 
+    private static final double limitFactor = 10.0 / Math.log(2);
+
     @Override
     public List<BooleanAssignment> find(int tmax) {
-        FeatJAR.log().info("Setup");
         if (failingConfs.isEmpty()) {
             return null;
         }
@@ -26,15 +27,12 @@ public class IncInteractionFinderRepeat extends AInteractionFinder {
         List<int[]>[] results = new List[tmax];
         BooleanAssignment[] mergedResults = new BooleanAssignment[tmax];
         for (int ti = 1; ti <= tmax; ++ti) {
-            FeatJAR.log().info("find t=" + ti);
             List<int[]> res = findT(ti);
             if (res != null) {
                 mergedResults[ti - 1] = new BooleanAssignment(lastMerge);
                 results[ti - 1] = res;
             }
         }
-
-        FeatJAR.log().info("DONE finding");
 
         int lastI = -1;
 
@@ -65,17 +63,17 @@ public class IncInteractionFinderRepeat extends AInteractionFinder {
                             }
 
 //                            while (true) {
-                                final BooleanSolution complete = updater.complete(
-                                                List.of(curMergedResult.get()), exclude, null)
-                                        .orElse(null);
-                                try {
-                                    if (complete != null && verify(complete)) {
-                                        break loop;
-                                    }
-//                                    break;
-                                } catch (DifferentErrorException e) {
+                            final BooleanSolution complete = updater.complete(
+                                            List.of(curMergedResult.get()), exclude, null)
+                                    .orElse(null);
+                            try {
+                                if (complete != null && verify(complete)) {
                                     break loop;
                                 }
+//                                    break;
+                            } catch (DifferentErrorException e) {
+                                break loop;
+                            }
 //                            }
                         }
                         lastI = i;
@@ -87,7 +85,6 @@ public class IncInteractionFinderRepeat extends AInteractionFinder {
         }
 
         final List<int[]> result = lastI == -1 ? null : results[lastI];
-        FeatJAR.log().info("DONE");
         return isPotentialInteraction(result)
                 ? List.of(new BooleanAssignment(
                 IntegerList.mergeInt(result.stream().collect(Collectors.toList()))))
@@ -105,6 +102,8 @@ public class IncInteractionFinderRepeat extends AInteractionFinder {
             return null;
         }
 
+        setConfigurationVerificationLimit((int) Math.ceil(limitFactor * Math.log(curInteractionList.size())));
+
         while (curInteractionList.size() > 1 //
                 && verifyCounter < configurationVerificationLimit) {
             BooleanSolution bestConfig =
@@ -120,7 +119,7 @@ public class IncInteractionFinderRepeat extends AInteractionFinder {
             int lastDiff = diff;
 
             loop:
-            while (true) {
+            while (verifyCounter < configurationVerificationLimit) {
                 while (diff > 1) {
                     BooleanSolution config;
                     if (include.size() > exclude.size()) {
@@ -156,8 +155,10 @@ public class IncInteractionFinderRepeat extends AInteractionFinder {
                         include.addAll(partitions.get(Boolean.TRUE));
                         exclude = partitions.get(Boolean.FALSE);
                     }
-                    lastDiff = diff;
-                    bestConfig = config;
+                    if (!configurationPool.contains(config)) {
+                        lastDiff = diff;
+                        bestConfig = config;
+                    }
                 }
 
                 try {
@@ -168,26 +169,19 @@ public class IncInteractionFinderRepeat extends AInteractionFinder {
                     }
                     break loop;
                 } catch (DifferentErrorException e) {
-                    List<int[]> a = new ArrayList<>();
-                    List<int[]> b = new ArrayList<>();
-                    for(int[] arr : include){
-                        a.add(arr.clone());
-                    }
-
-                    for(int[] arr : exclude){
-                        b.add(arr.clone());
-                    }
-
-                    for(int i = 0; i<b.size(); i++){
-                        for (int j = 0; j < b.get(i).length; j++) {
-                            b.get(i)[j] = -b.get(i)[j];
-                        }
-                    }
-
-                    a.addAll(b);
-
                     bestConfig =
-                            updater.complete(null, null, a).orElse(null);//???
+                            updater.complete(null, null, null).orElse(null);
+                    partitions = group(curInteractionList, bestConfig);
+                    include = partitions.get(Boolean.TRUE);
+                    exclude = partitions.get(Boolean.FALSE);
+                    if(exclude == null){
+                        exclude = new ArrayList<>();
+                    }
+                    if(include == null){
+                        include = new ArrayList<>();
+                    }
+                    diff = Math.abs(include.size() - exclude.size());
+                    lastDiff = diff;
                 }
             }
         }
@@ -202,6 +196,9 @@ public class IncInteractionFinderRepeat extends AInteractionFinder {
 
     protected boolean verify(BooleanSolution solution) throws DifferentErrorException {
         verifyCounter++;
+        if (!configurationPool.contains(solution)) {
+            configurationPool.add(solution);
+        }
         int error = verifier.test(solution);
         boolean result;
         if (error == 0) {
@@ -233,8 +230,6 @@ public class IncInteractionFinderRepeat extends AInteractionFinder {
                 final BooleanSolution testConfig =
                         updater.complete(interactions, null, null).orElse(null);
                 if (testConfig == null || verify(testConfig)) {
-                    System.out.println(testConfig == null);
-                    System.out.println(verify(testConfig));
                     return false;
                 }
                 break;
@@ -245,18 +240,15 @@ public class IncInteractionFinderRepeat extends AInteractionFinder {
 
         boolean result;
 
-        while (true) {
-            try {
-                int[] exclude = IntegerList.mergeInt(interactions);
-                final BooleanSolution inverseConfig =
-                        updater.complete(null, List.of(exclude), null).orElse(null);
-                result = inverseConfig == null || verify(inverseConfig);
-                System.out.println(inverseConfig == null);
-                break;
-            } catch (DifferentErrorException e) {
-                //
-            }
+        try {
+            int[] exclude = IntegerList.mergeInt(interactions);
+            final BooleanSolution inverseConfig =
+                    updater.complete(null, List.of(exclude), null).orElse(null);
+            result = inverseConfig == null || verify(inverseConfig);
+        } catch (DifferentErrorException e) {
+            result = true;
         }
+
         return result;
     }
 }
