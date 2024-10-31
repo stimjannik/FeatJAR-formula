@@ -44,7 +44,7 @@ public abstract class AInteractionFinder {
 
     protected List<BooleanSolution> succeedingConfs;
     protected List<BooleanSolution> failingConfs;
-    protected List<BooleanSolution> configurationPool = new ArrayList<>();
+    protected List<int[]> configurationPool = new ArrayList<>();
 
     protected int verifyCounter;
     protected int[] lastMerge;
@@ -145,7 +145,7 @@ public abstract class AInteractionFinder {
     protected boolean verify(BooleanSolution solution) {
         verifyCounter++;
         if(!configurationPool.contains(solution)) {
-            configurationPool.add(solution);
+            configurationPool.add(solution.get());
         }
         if (verifier.test(solution) == 0) {
             succeedingConfs.add(solution);

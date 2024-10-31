@@ -107,7 +107,7 @@ public class IncInteractionFinderRepeat extends AInteractionFinder {
         while (curInteractionList.size() > 1 //
                 && verifyCounter < configurationVerificationLimit) {
             BooleanSolution bestConfig =
-                    updater.complete(null, null, curInteractionList).orElse(null);
+                    updater.complete(null, deepCopyList(configurationPool), curInteractionList).orElse(null);
             if (bestConfig == null) {
                 break;
             }
@@ -123,7 +123,11 @@ public class IncInteractionFinderRepeat extends AInteractionFinder {
                 while (diff > 1) {
                     BooleanSolution config;
                     if (include.size() > exclude.size()) {
-                        config = updater.complete(null, exclude, include).orElse(null);
+
+                        List<int[]> copy = deepCopyList(exclude);
+                        copy.addAll(deepCopyList(configurationPool));
+
+                        config = updater.complete(null, copy, include).orElse(null);
                         if (config == null) {
                             break;
                         }
@@ -139,7 +143,7 @@ public class IncInteractionFinderRepeat extends AInteractionFinder {
                         exclude.addAll(partitions.get(Boolean.FALSE));
                         include = partitions.get(Boolean.TRUE);
                     } else {
-                        config = updater.complete(include, null, exclude).orElse(null);
+                        config = updater.complete(include, deepCopyList(configurationPool), exclude).orElse(null);
                         if (config == null) {
                             break;
                         }
@@ -155,10 +159,8 @@ public class IncInteractionFinderRepeat extends AInteractionFinder {
                         include.addAll(partitions.get(Boolean.TRUE));
                         exclude = partitions.get(Boolean.FALSE);
                     }
-                    if (!configurationPool.contains(config)) {
                         lastDiff = diff;
                         bestConfig = config;
-                    }
                 }
 
                 try {
@@ -169,19 +171,7 @@ public class IncInteractionFinderRepeat extends AInteractionFinder {
                     }
                     break loop;
                 } catch (DifferentErrorException e) {
-                    bestConfig =
-                            updater.complete(null, null, null).orElse(null);
-                    partitions = group(curInteractionList, bestConfig);
-                    include = partitions.get(Boolean.TRUE);
-                    exclude = partitions.get(Boolean.FALSE);
-                    if(exclude == null){
-                        exclude = new ArrayList<>();
-                    }
-                    if(include == null){
-                        include = new ArrayList<>();
-                    }
-                    diff = Math.abs(include.size() - exclude.size());
-                    lastDiff = diff;
+                    break loop;
                 }
             }
         }
@@ -197,7 +187,7 @@ public class IncInteractionFinderRepeat extends AInteractionFinder {
     protected boolean verify(BooleanSolution solution) throws DifferentErrorException {
         verifyCounter++;
         if (!configurationPool.contains(solution)) {
-            configurationPool.add(solution);
+            configurationPool.add(solution.get().clone());
         }
         int error = verifier.test(solution);
         boolean result;
@@ -250,5 +240,13 @@ public class IncInteractionFinderRepeat extends AInteractionFinder {
         }
 
         return result;
+    }
+
+    private List<int[]> deepCopyList(List<int[]> originalList) {
+        List<int[]> copy = new ArrayList<>(originalList.size());
+        for (int[] array : originalList) {
+            copy.add(array.clone());
+        }
+        return copy;
     }
 }

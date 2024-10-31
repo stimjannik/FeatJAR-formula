@@ -79,10 +79,12 @@ public class IncInteractionFinderOnlyWorkingConfigurations extends AInteractionF
         }
 
         final List<int[]> result = lastI == -1 ? null : results[lastI];
-        return isPotentialInteraction(result)
-                ? List.of(new BooleanAssignment(
-                IntegerList.mergeInt(result.stream().collect(Collectors.toList()))))
-                : null;
+//        return isPotentialInteraction(result)
+//                ? List.of(new BooleanAssignment(
+//                IntegerList.mergeInt(result.stream().collect(Collectors.toList()))))
+//                : null;
+        return List.of(new BooleanAssignment(
+                IntegerList.mergeInt(result.stream().collect(Collectors.toList()))));
     }
 
     @Override
@@ -102,7 +104,7 @@ public class IncInteractionFinderOnlyWorkingConfigurations extends AInteractionF
         while (curInteractionList.size() > errors.size() //
                 && verifyCounter < configurationVerificationLimit) {
             BooleanSolution bestConfig =
-                    updater.complete(null, null, curInteractionList).orElse(null);
+                    updater.complete(null, deepCopyList(configurationPool), curInteractionList).orElse(null);
             if (bestConfig == null) {
                 break;
             }
@@ -118,7 +120,11 @@ public class IncInteractionFinderOnlyWorkingConfigurations extends AInteractionF
                 while (diff > 1) {
                     BooleanSolution config;
                     if (include.size() > exclude.size()) {
-                        config = updater.complete(null, exclude, include).orElse(null);
+
+                        List<int[]> copy = deepCopyList(exclude);
+                        copy.addAll(deepCopyList(configurationPool));
+
+                        config = updater.complete(null, copy, include).orElse(null);
                         if (config == null) {
                             break;
                         }
@@ -134,7 +140,7 @@ public class IncInteractionFinderOnlyWorkingConfigurations extends AInteractionF
                         exclude.addAll(partitions.get(Boolean.FALSE));
                         include = partitions.get(Boolean.TRUE);
                     } else {
-                        config = updater.complete(include, null, exclude).orElse(null);
+                        config = updater.complete(include, deepCopyList(configurationPool), exclude).orElse(null);
                         if (config == null) {
                             break;
                         }
@@ -150,24 +156,8 @@ public class IncInteractionFinderOnlyWorkingConfigurations extends AInteractionF
                         include.addAll(partitions.get(Boolean.TRUE));
                         exclude = partitions.get(Boolean.FALSE);
                     }
-                    if (!configurationPool.contains(config)) {
-                        lastDiff = diff;
-                        bestConfig = config;
-                    } else {
-                        bestConfig =
-                                updater.complete(null, null, null).orElse(null);
-                        partitions = group(curInteractionList, bestConfig);
-                        include = partitions.get(Boolean.TRUE);
-                        exclude = partitions.get(Boolean.FALSE);
-                        if (exclude == null) {
-                            exclude = new ArrayList<>();
-                        }
-                        if (include == null) {
-                            include = new ArrayList<>();
-                        }
-                        diff = Math.abs(include.size() - exclude.size());
-                        lastDiff = diff;
-                    }
+                    lastDiff = diff;
+                    bestConfig = config;
                 }
 
                 final boolean pass = verify(bestConfig);
@@ -176,25 +166,8 @@ public class IncInteractionFinderOnlyWorkingConfigurations extends AInteractionF
                     if (lastMerge != null && pass == bestConfig.containsAll(lastMerge)) {
                         lastMerge = null;
                     }
-                    break loop;
-                } else {
-                    bestConfig =
-                            updater.complete(null, null, null).orElse(null);
-                    partitions = group(curInteractionList, bestConfig);
-                    include = partitions.get(Boolean.TRUE);
-                    exclude = partitions.get(Boolean.FALSE);
-                    if (exclude == null) {
-                        exclude = new ArrayList<>();
-                    }
-                    if (include == null) {
-                        include = new ArrayList<>();
-                    }
-                    diff = Math.abs(include.size() - exclude.size());
-                    lastDiff = diff;
                 }
-            }
-            if(configurationVerificationLimit == verifyCounter){
-                throw new RuntimeException();
+                break loop;
             }
         }
 
@@ -224,7 +197,7 @@ public class IncInteractionFinderOnlyWorkingConfigurations extends AInteractionF
     protected boolean verify(BooleanSolution solution) {
         verifyCounter++;
         if (!configurationPool.contains(solution)) {
-            configurationPool.add(solution);
+            configurationPool.add(solution.get().clone());
         }
         final int error = verifier.test(solution);
         if (error == 0) {
@@ -237,4 +210,13 @@ public class IncInteractionFinderOnlyWorkingConfigurations extends AInteractionF
             return false;
         }
     }
+
+    private List<int[]> deepCopyList(List<int[]> originalList) {
+        List<int[]> copy = new ArrayList<>(originalList.size());
+        for (int[] array : originalList) {
+            copy.add(array.clone());
+        }
+        return copy;
+    }
+
 }
