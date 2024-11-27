@@ -102,7 +102,7 @@ public abstract class AInteractionFinder {
             return List.of(commonLiterals);
         }
 
-        Stream<int[]> stream = LexicographicIterator.parallelStream(t, commonLiterals.length) //
+        Stream<int[]> stream = LexicographicIterator.stream(t, commonLiterals.length) //
                 .map(combo -> combo.getSelection(commonLiterals));
         List<int[]> interactions;
         if (lastMerge != null) {
@@ -137,7 +137,7 @@ public abstract class AInteractionFinder {
     }
 
     protected Map<Boolean, List<int[]>> group(List<int[]> list, final BooleanSolution newConfig) {
-        return list.parallelStream()
+        return list.stream()
                 .collect(Collectors.groupingByConcurrent(
                         i -> newConfig.containsAll(i), Collectors.toCollection(ArrayList::new)));
     }
