@@ -21,7 +21,9 @@
 package de.featjar.formula.assignment;
 
 import de.featjar.formula.VariableMap;
+
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * {@link AAssignmentGroups} implementation for {@link ABooleanAssignment}.
@@ -55,5 +57,11 @@ public class BooleanAssignmentGroups extends AAssignmentGroups<ABooleanAssignmen
         final BooleanSolutionList list = new BooleanSolutionList(group.size());
         group.stream().map(ABooleanAssignment::toSolution).forEach(list::add);
         return list;
+    }
+
+    public BooleanAssignmentGroups adapt(VariableMap oldVariables, VariableMap newVariables) {
+        return new BooleanAssignmentGroups(variableMap, assignmentGroups.stream().map(group ->
+                group.stream().map(c -> c.adapt(oldVariables, newVariables).get()).map(BooleanClause::new).collect(Collectors.toList())
+        ).collect(Collectors.toList()));
     }
 }
