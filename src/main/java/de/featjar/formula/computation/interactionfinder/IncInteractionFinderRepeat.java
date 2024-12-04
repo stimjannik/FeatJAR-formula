@@ -118,61 +118,57 @@ public class IncInteractionFinderRepeat extends AInteractionFinder {
             int diff = Math.abs(include.size() - exclude.size());
             int lastDiff = diff;
 
-            loop:
-            while (verifyCounter < configurationVerificationLimit) {
-                while (diff > 1) {
-                    BooleanSolution config;
-                    if (include.size() > exclude.size()) {
+            while (diff > 1) {
+                BooleanSolution config;
+                if (include.size() > exclude.size()) {
 
-                        List<int[]> copy = deepCopyList(exclude);
-                        copy.addAll(deepCopyList(configurationPool));
+                    List<int[]> copy = deepCopyList(exclude);
+                    copy.addAll(deepCopyList(configurationPool));
 
-                        config = updater.complete(null, copy, include).orElse(null);
-                        if (config == null) {
-                            break;
-                        }
-                        partitions = group(include, config);
-                        assert partitions.get(Boolean.FALSE) != null;
-                        assert partitions.get(Boolean.TRUE) != null;
-                        diff = Math.abs(
-                                (exclude.size() + partitions.get(Boolean.FALSE).size())
-                                        - partitions.get(Boolean.TRUE).size());
-                        if (diff >= lastDiff) {
-                            break;
-                        }
-                        exclude.addAll(partitions.get(Boolean.FALSE));
-                        include = partitions.get(Boolean.TRUE);
-                    } else {
-                        config = updater.complete(include, deepCopyList(configurationPool), exclude).orElse(null);
-                        if (config == null) {
-                            break;
-                        }
-                        partitions = group(exclude, config);
-                        assert partitions.get(Boolean.FALSE) != null;
-                        assert partitions.get(Boolean.TRUE) != null;
-                        diff = Math.abs(
-                                (include.size() + partitions.get(Boolean.TRUE).size())
-                                        - partitions.get(Boolean.FALSE).size());
-                        if (diff >= lastDiff) {
-                            break;
-                        }
-                        include.addAll(partitions.get(Boolean.TRUE));
-                        exclude = partitions.get(Boolean.FALSE);
+                    config = updater.complete(null, copy, include).orElse(null);
+                    if (config == null) {
+                        break;
                     }
-                        lastDiff = diff;
-                        bestConfig = config;
-                }
-
-                try {
-                    final boolean pass = verify(bestConfig);
-                    curInteractionList = pass ? exclude : include;
-                    if (lastMerge != null && pass == bestConfig.containsAll(lastMerge)) {
-                        lastMerge = null;
+                    partitions = group(include, config);
+                    assert partitions.get(Boolean.FALSE) != null;
+                    assert partitions.get(Boolean.TRUE) != null;
+                    diff = Math.abs(
+                            (exclude.size() + partitions.get(Boolean.FALSE).size())
+                                    - partitions.get(Boolean.TRUE).size());
+                    if (diff >= lastDiff) {
+                        break;
                     }
-                    break loop;
-                } catch (DifferentErrorException e) {
-                    break loop;
+                    exclude.addAll(partitions.get(Boolean.FALSE));
+                    include = partitions.get(Boolean.TRUE);
+                } else {
+                    config = updater.complete(include, deepCopyList(configurationPool), exclude).orElse(null);
+                    if (config == null) {
+                        break;
+                    }
+                    partitions = group(exclude, config);
+                    assert partitions.get(Boolean.FALSE) != null;
+                    assert partitions.get(Boolean.TRUE) != null;
+                    diff = Math.abs(
+                            (include.size() + partitions.get(Boolean.TRUE).size())
+                                    - partitions.get(Boolean.FALSE).size());
+                    if (diff >= lastDiff) {
+                        break;
+                    }
+                    include.addAll(partitions.get(Boolean.TRUE));
+                    exclude = partitions.get(Boolean.FALSE);
                 }
+                lastDiff = diff;
+                bestConfig = config;
+            }
+
+            try {
+                final boolean pass = verify(bestConfig);
+                curInteractionList = pass ? exclude : include;
+                if (lastMerge != null && pass == bestConfig.containsAll(lastMerge)) {
+                    lastMerge = null;
+                }
+            } catch (DifferentErrorException e) {
+                //
             }
         }
 
